@@ -30,7 +30,7 @@ func FindImagePath(dir string) []string {
 		case ".jpg", ".jpeg", ".png":
 			r = append(r, path.Join(dir, f.Name()))
 		default:
-			fmt.Printf("image format not support :%q\n", f.Name())
+			fmt.Printf("image format not support :%q\n", path.Join(dir, f.Name()))
 		}
 	}
 	return r

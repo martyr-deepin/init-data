@@ -22,26 +22,26 @@ var cow2 = `
 
 var cows = []string{
 	`
-还有%d个问题, 今天不解决就
+还有%d个应用无法导入以及%d条多余数据 今天不解决就
           ▄︻̷̿┻̿═━一
 `,
 	`
-还有%d个问题, 今天不解决就
+还有%d个应用无法导入以及%d条多余数据 今天不解决就
       ︻デ┳═ー*----*	
 `,
 	`
-还有%d个问题, 今天不解决就
+还有%d个应用无法导入以及%d条多余数据 今天不解决就
                    ()==[:::::::::::::>
 `,
 }
 
-func ShowCow(n int) {
+func ShowCow(n1 int, n2 int) {
 	rand.Seed(time.Now().Unix())
-	if n == 0 {
+	if n1+n2 == 0 {
 		fmt.Println(cow2)
-	} else if n < 10 {
+	} else if n1+n2 < 10 {
 		fmt.Println(cow1)
 	} else {
-		fmt.Printf(cows[rand.Int31n(int32(len(cows)))], n)
+		fmt.Printf(cows[rand.Int31n(int32(len(cows)))], n1, n2)
 	}
 }

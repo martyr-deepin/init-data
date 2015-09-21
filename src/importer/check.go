@@ -17,7 +17,8 @@ import (
 type Checker struct {
 	items     []string
 	serverURL string
-	validID   map[string]bool
+	validIDs  map[string]bool
+	targetIDs map[string]bool
 }
 
 func (c *Checker) loadDSC() {
@@ -37,72 +38,46 @@ func (c *Checker) loadDSC() {
 		os.Exit(1)
 	}
 	for _, id := range playload.Data {
-		c.validID[id] = true
+		c.validIDs[id] = true
 	}
 }
 
 func NewChecker(serverURL string) *Checker {
 	c := &Checker{
 		serverURL: serverURL,
-		validID:   make(map[string]bool),
+		validIDs:  make(map[string]bool),
 	}
 	c.loadDSC()
 	return c
 }
 
-func (c Checker) filterCover(items []Item, baseDir string) []Item {
-	var r []Item
-	invalid := false
-	var lostCovers []string
+func (c *Checker) setupTargets(items []Item) {
+	c.targetIDs = make(map[string]bool)
 	for _, t := range items {
-		coverPath := path.Join(baseDir, "covers", t.Id+".jpg1")
-		if _, err := os.Stat(coverPath); err != nil {
-			lostCovers = append(lostCovers, t.Id)
-			invalid = true
-		}
-
-		if !invalid {
-			r = append(r, t)
-		}
+		c.targetIDs[t.Id] = true
 	}
-
-	if len(lostCovers) != 0 {
-		fmt.Printf("共%d个应用没有找到的封面图, 这些应用信息不会自动导入到服务器\n%v\n\n",
-			len(lostCovers), lostCovers)
-	}
-
-	var uselessCovers []string
-	{
-		fs, err := ioutil.ReadDir(path.Join(baseDir, "covers"))
-		if err != nil {
-			fmt.Println("无法找到封面图目录")
-		}
-
-		for _, f := range fs {
-			name := f.Name()
-			id := name[:len(name)-len(path.Ext(name))]
-
-			if !c.validID[id] {
-				uselessCovers = append(uselessCovers, f.Name())
-			}
-		}
-		if len(uselessCovers) != 0 {
-			fmt.Printf("共%d个多余封面图:\n%v\n\n", len(uselessCovers), uselessCovers)
-		}
-	}
-
-	return r
 }
 
-func (c Checker) Filter(items []Item, baseDir string) []Item {
+// HitDSC return true if this id is in repository
+func (c Checker) HitDSC(id string) bool {
+	return c.validIDs[id]
+}
+
+// HitTarget return true if this id is in target set of c.Filter
+func (c Checker) HitTarget(id string) bool {
+	return c.targetIDs[id]
+}
+
+func (c Checker) FilterLost(items []Item, baseDir string) ([]Item, int) {
 	//TODO: split this
 	var r []Item
 	var invalidIds []string
 	var lostIcons []string
 	var lostScreenshots []string
+	var lostCovers []string
 	for _, t := range items {
 		invalid := false
-		if !c.validID[t.Id] {
+		if !c.HitDSC(t.Id) {
 			invalidIds = append(invalidIds, t.Id)
 			invalid = true
 		}
@@ -110,6 +85,12 @@ func (c Checker) Filter(items []Item, baseDir string) []Item {
 		iconPath := path.Join(baseDir, "icons", t.Id+".svg")
 		if _, err := os.Stat(iconPath); err != nil {
 			lostIcons = append(lostIcons, t.Id)
+			invalid = true
+		}
+
+		coverPath := path.Join(baseDir, "covers", t.Id+".jpg")
+		if _, err := os.Stat(coverPath); err != nil {
+			lostCovers = append(lostCovers, t.Id)
 			invalid = true
 		}
 
@@ -138,19 +119,35 @@ func (c Checker) Filter(items []Item, baseDir string) []Item {
 		fmt.Printf("共%d个应用没有找到截图目录, 这些应用信息不会自动导入到服务器\n%v\n\n",
 			len(lostScreenshots), lostScreenshots)
 	}
+	if len(lostCovers) != 0 {
+		fmt.Printf("共%d个应用没有找到封面图目录, 这些应用信息不会自动导入到服务器\n%v\n\n",
+			len(lostCovers), lostCovers)
+	}
 
+	return r, len(invalidIds) + len(lostIcons) + len(lostScreenshots) + len(lostCovers)
+}
+
+func (c *Checker) Filter(items []Item, baseDir string) []Item {
+	c.setupTargets(items)
+
+	r, n1 := c.FilterLost(items, baseDir)
+	n2 := c.checkUseless(baseDir)
+	ShowCow(n1, n2)
+	return r
+}
+
+func (c *Checker) checkUseless(baseDir string) int {
 	var uselessIcons []string
 	{
 		fs, err := ioutil.ReadDir(path.Join(baseDir, "icons"))
 		if err != nil {
 			fmt.Println("无法找到图标目录")
 		}
-
 		for _, f := range fs {
 			name := f.Name()
 			id := name[:len(name)-len(path.Ext(name))]
 
-			if !c.validID[id] {
+			if !c.HitTarget(id) {
 				uselessIcons = append(uselessIcons, f.Name())
 			}
 		}
@@ -166,7 +163,7 @@ func (c Checker) Filter(items []Item, baseDir string) []Item {
 			fmt.Println("无法找到截图目录")
 		}
 		for _, f := range fs {
-			if !c.validID[f.Name()] {
+			if !c.HitTarget(f.Name()) {
 				uselessScreenshot = append(uselessScreenshot, f.Name())
 			} else {
 				c.WarningScreenshotLang(path.Join(baseDir, "screenshots", f.Name()))
@@ -177,10 +174,25 @@ func (c Checker) Filter(items []Item, baseDir string) []Item {
 		}
 	}
 
-	n := len(invalidIds) + len(lostScreenshots) + len(lostIcons) + len(uselessScreenshot) + len(uselessIcons)
-	ShowCow(n)
+	var uselessCovers []string
+	{
+		fs, err := ioutil.ReadDir(path.Join(baseDir, "covers"))
+		if err != nil {
+			fmt.Println("无法找到封面目录")
+		}
+		for _, f := range fs {
+			name := f.Name()
+			id := name[:len(name)-len(path.Ext(name))]
+			if !c.HitTarget(id) {
+				uselessCovers = append(uselessCovers, f.Name())
+			}
+		}
+		if len(uselessCovers) != 0 {
+			fmt.Printf("共%d个多余封面图目录:\n%v\n\n", len(uselessCovers), uselessCovers)
+		}
+	}
 
-	return c.filterCover(r, baseDir)
+	return len(uselessScreenshot) + len(uselessIcons) + len(uselessCovers)
 }
 
 func (c *Checker) WarningScreenshotLang(imgDir string) {
