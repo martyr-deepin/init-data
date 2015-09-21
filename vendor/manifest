@@ -1,0 +1,11 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/tealeg/xlsx",
+			"repository": "https://github.com/tealeg/xlsx",
+			"revision": "a7aeae00c5fed8a67c6207caa33d1f1718e1270d",
+			"branch": "master"
+		}
+	]
+}
