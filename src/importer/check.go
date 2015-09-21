@@ -50,7 +50,52 @@ func NewChecker(serverURL string) *Checker {
 	return c
 }
 
+func (c Checker) filterCover(items []Item, baseDir string) []Item {
+	var r []Item
+	invalid := false
+	var lostCovers []string
+	for _, t := range items {
+		coverPath := path.Join(baseDir, "covers", t.Id+".jpg1")
+		if _, err := os.Stat(coverPath); err != nil {
+			lostCovers = append(lostCovers, t.Id)
+			invalid = true
+		}
+
+		if !invalid {
+			r = append(r, t)
+		}
+	}
+
+	if len(lostCovers) != 0 {
+		fmt.Printf("共%d个应用没有找到的封面图, 这些应用信息不会自动导入到服务器\n%v\n\n",
+			len(lostCovers), lostCovers)
+	}
+
+	var uselessCovers []string
+	{
+		fs, err := ioutil.ReadDir(path.Join(baseDir, "covers"))
+		if err != nil {
+			fmt.Println("无法找到封面图目录")
+		}
+
+		for _, f := range fs {
+			name := f.Name()
+			id := name[:len(name)-len(path.Ext(name))]
+
+			if !c.validID[id] {
+				uselessCovers = append(uselessCovers, f.Name())
+			}
+		}
+		if len(uselessCovers) != 0 {
+			fmt.Printf("共%d个多余封面图:\n%v\n\n", len(uselessCovers), uselessCovers)
+		}
+	}
+
+	return r
+}
+
 func (c Checker) Filter(items []Item, baseDir string) []Item {
+	//TODO: split this
 	var r []Item
 	var invalidIds []string
 	var lostIcons []string
@@ -135,7 +180,7 @@ func (c Checker) Filter(items []Item, baseDir string) []Item {
 	n := len(invalidIds) + len(lostScreenshots) + len(lostIcons) + len(uselessScreenshot) + len(uselessIcons)
 	ShowCow(n)
 
-	return r
+	return c.filterCover(r, baseDir)
 }
 
 func (c *Checker) WarningScreenshotLang(imgDir string) {
