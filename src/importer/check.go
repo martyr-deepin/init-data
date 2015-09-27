@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
+	"strings"
 )
 
 // 1. 所有id以info.xlsx文件中为主
@@ -133,6 +136,7 @@ func (c *Checker) Filter(items []Item, baseDir string) []Item {
 	r, n1 := c.FilterLost(items, baseDir)
 	n2 := c.checkUseless(baseDir)
 	ShowCow(n1, n2)
+
 	return r
 }
 
@@ -225,5 +229,59 @@ func (c *Checker) WarningScreenshotLang(imgDir string) {
 }
 
 func (t Item) Valid() bool {
+	return true
+}
+
+func validSVG(fpath string) bool {
+	bs, err := exec.Command("inkscape", "-z", fpath).CombinedOutput()
+	if err != nil {
+		//can't find the inkscape command
+		return true
+	}
+	return !bytes.Contains(bs, ([]byte)("error"))
+}
+
+// 1. move all files into targetDir
+// 2. use inkscape to fix invalid svg file
+func FixSVG(file string, backupDir string) error {
+	os.MkdirAll(backupDir, 0755)
+	newFile := path.Join(backupDir, path.Base(file))
+	err := os.Rename(file, newFile)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("inkscape", "-z", "-l", file, newFile)
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
+}
+
+func CheckIcons(baseDir string) bool {
+	baseDir = path.Join(baseDir, "icons")
+	fs, err := ioutil.ReadDir(baseDir)
+	if err != nil {
+		panic("Can't find icons directory " + baseDir)
+	}
+
+	var invalidSVG []string
+	for _, finfo := range fs {
+		if strings.ToLower(path.Ext(finfo.Name())) == ".svg" {
+			fpath := path.Join(baseDir, finfo.Name())
+			if !validSVG(fpath) {
+				invalidSVG = append(invalidSVG, fpath)
+				fmt.Println("InvalidSVG:", fpath)
+			}
+		}
+	}
+	if len(invalidSVG) != 0 {
+		fmt.Printf("发现%d个有问题的svg文件,尝试修复中\n", len(invalidSVG))
+		for _, fpath := range invalidSVG {
+			backupDir := path.Join(baseDir, "invalids")
+			err := FixSVG(fpath, backupDir)
+			fmt.Printf("修复%s中...旧文件备份到%s\n", fpath, path.Join(backupDir, path.Base(fpath)))
+			if err != nil {
+				fmt.Printf("修复%s失败:%v..\n", fpath, err)
+			}
+		}
+	}
 	return true
 }

@@ -61,8 +61,20 @@ func main() {
 	var dataDir = flag.String("i", "", "需要转换的数据目录,包含info.xlsx, screenshots等目录")
 	var upload = flag.Bool("upload", false, "上传当前有效的数据. 默认情况下仅进行数据有效性的检测")
 	var server = flag.String("server", "", "仓库api的服务器, 用来检测数据有效性以及上传数据")
+	var fixSVG = flag.Bool("fix", false, "尝试修复无效的图标")
 	flag.Parse()
-	if *dataDir == "" || *server == "" {
+
+	if *dataDir == "" {
+
+		return
+	}
+
+	if *fixSVG {
+		CheckIcons(*dataDir)
+		return
+	}
+
+	if *server == "" {
 		flag.Usage()
 		return
 	}
