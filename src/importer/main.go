@@ -62,10 +62,10 @@ func main() {
 	var upload = flag.Bool("upload", false, "上传当前有效的数据. 默认情况下仅进行数据有效性的检测")
 	var server = flag.String("server", "", "仓库api的服务器, 用来检测数据有效性以及上传数据")
 	var fixSVG = flag.Bool("fix", false, "尝试修复无效的图标")
+	var _ids = flag.String("ids", "", "只上传指定的包列表")
 	flag.Parse()
 
 	if *dataDir == "" {
-
 		return
 	}
 
@@ -85,12 +85,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	c := NewChecker(*server)
-	ts = c.Filter(ts, *dataDir)
+	if *_ids != "" {
+		ids := strings.Split(*_ids, ",")
+		var r []Item
+		for _, t := range ts {
+			for _, id := range ids {
+				if id == t.Id {
+					r = append(r, t)
+				}
+			}
+		}
+		ts = r
+	} else {
+		c := NewChecker(*server)
 
-	err = WriteToJSON(ts, path.Join(*dataDir, "info.json"))
-	if err != nil {
-		fmt.Println("Can't write info.json", err)
+		ts = c.Filter(ts, *dataDir)
+
+		err = WriteToJSON(ts, path.Join(*dataDir, "info.json"))
+		if err != nil {
+			fmt.Println("Can't write info.json", err)
+		}
 	}
 
 	if !*upload {
@@ -98,8 +112,8 @@ func main() {
 	}
 
 	for _, t := range ts {
-		err := Upload(*server, t, *dataDir)
 		fmt.Printf("Uploading... %q.......", t.Id)
+		err := Upload(*server, t, *dataDir)
 		if err != nil {
 			fmt.Printf("failed: %v\n", err)
 		} else {
