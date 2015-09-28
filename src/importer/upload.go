@@ -38,20 +38,6 @@ func FindImagePath(dir string) []string {
 
 var client = &http.Client{}
 
-// zh_CN: name, descriptions and screenshots(if has any)
-func UploadEnglish(w *multipart.Writer, t Item) {
-	w.WriteField("lang", "en_US")
-	w.WriteField("name", t.NameEN)
-	w.WriteField("description", t.DescriptionEN)
-}
-
-// zh_CN: name, descriptions and screenshots(if has any)
-func UploadChinese(w *multipart.Writer, t Item) {
-	w.WriteField("lang", "zh_CN")
-	w.WriteField("name", t.NameZH)
-	w.WriteField("description", t.DescriptionZH)
-}
-
 func writeImage(w *multipart.Writer, field string, fpath string) error {
 	f, err := os.Open(fpath)
 	if err != nil {
@@ -75,21 +61,23 @@ func Upload(serverURL string, t Item, baseDir string) error {
 		return fmt.Errorf("Can't find the icon for %q(%q)\n", t.Id, iconPath)
 	}
 
-	fns := []func(*multipart.Writer, Item){
-		UploadEnglish,
-		UploadChinese,
-	}
-	for _, fn := range fns {
-		var b bytes.Buffer
-		w := multipart.NewWriter(&b)
-		fn(w, t)
-		w.Close()
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
 
-		err := DoRequest(serverURL, t.Id, &b, w.FormDataContentType())
+	w.WriteField("name", t.NameEN)
+	w.WriteField("description", t.DescriptionEN)
 
-		if err != nil {
-			return fmt.Errorf("Upload.DoRequest(%q) failed: %v\n", t.Id, err)
-		}
+	w.WriteField("name:en_US", t.NameEN)
+	w.WriteField("description:en_US", t.DescriptionEN)
+
+	w.WriteField("name:zh_CN", t.NameZH)
+	w.WriteField("description:zh_CN", t.DescriptionZH)
+	w.Close()
+
+	err := DoRequest(serverURL, t.Id, &b, w.FormDataContentType())
+
+	if err != nil {
+		return fmt.Errorf("Upload.DoRequest(%q) failed: %v\n", t.Id, err)
 	}
 
 	// Upload Icon
@@ -110,68 +98,31 @@ func Upload(serverURL string, t Item, baseDir string) error {
 		}
 	}
 
-	// Upload English screenshots
-	enImgs := FindImagePath(path.Join(baseDir, "screenshots", t.Id, "en_US"))
-	if len(enImgs) == 0 {
-		enImgs = FindImagePath(path.Join(baseDir, "screenshots", t.Id, "en"))
-	}
-	for i, fpath := range enImgs {
-		var b bytes.Buffer
-		w := multipart.NewWriter(&b)
-		w.WriteField("lang", "en_US")
-		field := fmt.Sprintf("s%d", i)
-		w.WriteField("screenshots", field)
-		err := writeImage(w, field, fpath)
-		if err != nil {
-			return fmt.Errorf("Upload.WriteImage(%q) failed: %v\n", fpath, err)
-		}
-		w.Close()
+	// Upload  screenshots
+	for _, lang := range []string{"en_US", "zh_CN", ""} {
+		imageDir := path.Join(baseDir, "screenshots", t.Id, lang)
+		for i, fpath := range FindImagePath(imageDir) {
 
-		err = DoRequest(serverURL, t.Id, &b, w.FormDataContentType())
+			var b bytes.Buffer
+			w := multipart.NewWriter(&b)
+			field := fmt.Sprintf("s%d", i)
+			if lang != "" {
+				w.WriteField("screenshots:"+lang, field)
+			} else {
+				w.WriteField("screenshots", field)
+			}
+			err := writeImage(w, field, fpath)
+			fmt.Println("try upload image... ", fpath, field)
+			if err != nil {
+				return fmt.Errorf("Upload.WriteImage(%q) failed: %v\n", fpath, err)
+			}
+			w.Close()
 
-		if err != nil {
-			return fmt.Errorf("Upload.DoRequest(%q) failed: %v\n", t.Id, err)
-		}
-	}
+			err = DoRequest(serverURL, t.Id, &b, w.FormDataContentType())
 
-	zhImgs := FindImagePath(path.Join(baseDir, "screenshots", t.Id, "zh_CN"))
-	if len(enImgs) == 0 {
-		zhImgs = FindImagePath(path.Join(baseDir, "screenshots", t.Id, "zh"))
-	}
-	for i, fpath := range zhImgs {
-		var b bytes.Buffer
-		w := multipart.NewWriter(&b)
-		w.WriteField("lang", "zh_CN")
-		field := fmt.Sprintf("s%d", i)
-		w.WriteField("screenshots", field)
-		err := writeImage(w, field, fpath)
-		if err != nil {
-			return fmt.Errorf("Upload.WriteImage(%q) failed: %v\n", fpath, err)
-		}
-		w.Close()
-
-		err = DoRequest(serverURL, t.Id, &b, w.FormDataContentType())
-
-		if err != nil {
-			return fmt.Errorf("Upload.DoRequest(%q) failed: %v\n", t.Id, err)
-		}
-	}
-	for i, fpath := range FindImagePath(path.Join(baseDir, "screenshots", t.Id)) {
-		var b bytes.Buffer
-		w := multipart.NewWriter(&b)
-		w.WriteField("lang", "any")
-		field := fmt.Sprintf("s%d", i)
-		w.WriteField("screenshots", field)
-		err := writeImage(w, field, fpath)
-		if err != nil {
-			return fmt.Errorf("Upload.WriteImage(%q) failed: %v\n", fpath, err)
-		}
-		w.Close()
-
-		err = DoRequest(serverURL, t.Id, &b, w.FormDataContentType())
-
-		if err != nil {
-			return fmt.Errorf("Upload.DoRequest(%q) failed: %v\n", t.Id, err)
+			if err != nil {
+				return fmt.Errorf("Upload.DoRequest(%q) failed: %v\n", t.Id, err)
+			}
 		}
 	}
 	return nil
