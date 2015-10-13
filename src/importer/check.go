@@ -30,6 +30,7 @@ func (c *Checker) loadDSC() {
 		fmt.Printf("无法获得服务器状态: %s\n", c.serverURL)
 		os.Exit(1)
 	}
+	defer resp.Body.Close()
 	d := json.NewDecoder(resp.Body)
 	var playload struct {
 		StatusCode int      `json:"status_code"`

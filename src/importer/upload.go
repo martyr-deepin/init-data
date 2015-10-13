@@ -43,6 +43,7 @@ func writeImage(w *multipart.Writer, field string, fpath string) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 	fw, err := w.CreateFormFile(field, fpath)
 	if err != nil {
 		return err
@@ -139,10 +140,10 @@ func DoRequest(serverURL string, id string, r io.Reader, formBoundary string) er
 	if err != nil {
 		return fmt.Errorf("failed when http.Client.Do: %v\n", err)
 	}
+	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		fmt.Printf("http.StatusCode not ok: %v\n\t", res.Status)
 		io.Copy(os.Stderr, res.Body)
-		res.Body.Close()
 		return nil
 	}
 	return nil
