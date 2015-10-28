@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -132,6 +133,8 @@ func Upload(serverURL string, t Item, baseDir string) error {
 func DoRequest(serverURL string, id string, r io.Reader, formBoundary string) error {
 	req, err := http.NewRequest("POST", serverURL+"/metadata/"+id, r)
 	req.Header.Set("Content-Type", formBoundary)
+	req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("deepin:deepin")))
+
 	if err != nil {
 		return fmt.Errorf("failed when http.NewRequest:%v\n", err)
 	}
