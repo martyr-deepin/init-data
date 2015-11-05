@@ -11,3 +11,8 @@ fix:
 	./bin/importer -i data -fix=true
 
 
+check-desktop:
+	curl repository.api.deepin.test/metadata |jq -r ".data | .[] |.id |@text" > /tmp/app.list
+	apt-file search desktop | awk -F ':' '{print $$1}' | sort | uniq > /tmp/desktop.list
+	cat /tmp/app.list /tmp/desktop.list | sort | uniq -d > /tmp/has_desktop.list
+	cat /tmp/has_desktop.list /tmp/app.list | sort | uniq -u
